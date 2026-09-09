@@ -12,6 +12,8 @@
  * syncCostUi/bindPushToTalkShortcut/toggleVoiceTier/getDiagnostics.
  */
 
+import { governorRequestRender, holdContinuousRender, releaseContinuousRender } from '../renderGovernor.js';
+
 const STATUS = {
   idle: 'OFF',
   connecting: 'CONNECTING',
@@ -21,6 +23,11 @@ const STATUS = {
 };
 const TURN_URL = '/api/local-voice/turn';
 const MAX_TOOL_ROUNDS = 4;
+// Camera flights and layer loads need frames; the idle render governor parks
+// the scene in requestRenderMode, so hold continuous rendering around tool
+// execution and for a few seconds after (long enough for a 2-3 s flight).
+const RENDER_HOLD_MS = 8000;
+const RENDER_HOLD_OWNER = 'local-voice';
 const MAX_HISTORY = 20;
 
 function speechRecognitionCtor() {
@@ -128,6 +135,8 @@ export class LocalVoiceController {
 
   stop({ removeUi = false } = {}) {
     if (removeUi) this.panel?.root?.remove();
+    clearTimeout(this.renderHoldTimer);
+    releaseContinuousRender(RENDER_HOLD_OWNER);
     this.active = false;
     this.stopRecognizer();
     try { window.speechSynthesis?.cancel(); } catch { /* ignore */ }
@@ -213,8 +222,16 @@ export class LocalVoiceController {
     return { text: data.text || '', toolCalls: Array.isArray(data.toolCalls) ? data.toolCalls : [] };
   }
 
+  holdRender() {
+    holdContinuousRender(RENDER_HOLD_OWNER);
+    clearTimeout(this.renderHoldTimer);
+    this.renderHoldTimer = setTimeout(() => releaseContinuousRender(RENDER_HOLD_OWNER), RENDER_HOLD_MS);
+    governorRequestRender(RENDER_HOLD_OWNER);
+  }
+
   async runTool(call) {
     this.setStatus('executing', `${call.name.replace(/_/g, ' ')}…`);
+    this.holdRender();
     try {
       const result = await this.runner(call.name, call.args || {}, { isCurrent: () => true });
       return result ?? { ok: true, action: call.name };
