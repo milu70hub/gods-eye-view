@@ -2146,6 +2146,7 @@ silently demoting every later lookup for the session.
 ### Keyless forward geocoding (September 2026)
 
 - `server/keylessGeocode.js` installs `GET /api/geocode?q=<place>[&bounds=s,w|n,e]`. It queries Nominatim `/search` (jsonv2, limit 1, optional soft `viewbox` from the viewport bias), serializes upstream calls at ≥1.1 s, caches per query for 10 minutes, and returns `{ status:'OK'|'ZERO_RESULTS', results:[{ formatted_address, geometry:{ location, viewport }, types }] }` — the subset of the Google Geocoding shape that `searchAndFlyTo` reads. Nominatim `class/type/addresstype` is mapped onto the Google `types` the navigation-mode heuristic understands (country / administrative_area / locality / neighborhood / route / park / natural_feature / establishment).
+- `annotationResolver.geocodePlace` (annotation targets, route waypoints, analyst regions) takes the same keyless branch, so "draw the walking route from A to B" and `fly_route` work without a key.
 - `searchAndFlyTo` picks Google when `GOOGLE_MAPS_API_KEY` is present (unchanged behaviour, Places recovery included) and the proxy otherwise; it no longer throws `No Google Maps API key available for geocoding`. The viewport/landmark/swath framing that follows is shared.
 
 ### Voice Control (June 2026)

@@ -8,7 +8,7 @@ of current runtime behavior, see [`docs/CURRENT-STATE.md`](docs/CURRENT-STATE.md
 ### Added
 
 - Keyless forward geocoding: `fly_to_location` (voice, typed, and the
-  location bar) now resolves any place name without a Google Maps key through
+  location bar) and `annotate_map` targets / route waypoints now resolve any place name without a Google Maps key through
   `GET /api/geocode` (Nominatim, ≥1.1 s between upstream calls, 10-minute
   cache, policy User-Agent). Answers arrive in the Google Geocoding shape, so
   `searchAndFlyTo` keeps one code path; Google Geocoding + Places recovery

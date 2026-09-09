@@ -604,14 +604,17 @@ function ringAreaM2(ring) {
  */
 async function geocodePlace(query, biasRect, signal) {
   const apiKey = window.__GOOGLE_MAPS_API_KEY__ || import.meta.env.GOOGLE_MAPS_API_KEY;
-  if (!apiKey) return null;
 
   const cacheKey = `${query.toLowerCase()}|${biasRect || ''}`;
   const cached = cacheRead(geocodeCache, cacheKey);
   if (cached !== undefined) return cached;
 
-  let url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${apiKey}`;
-  if (biasRect) url += `&bounds=${biasRect}`;
+  // Keyless: the `/api/geocode` proxy (Nominatim) answers in the same shape, so
+  // annotation targets and route waypoints resolve without a Google key too.
+  let url = apiKey
+    ? `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${apiKey}`
+    : `/api/geocode?q=${encodeURIComponent(query)}`;
+  if (biasRect) url += `&bounds=${apiKey ? biasRect : encodeURIComponent(biasRect)}`;
 
   try {
     const response = await fetch(url, { signal });
