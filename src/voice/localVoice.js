@@ -233,7 +233,12 @@ export class LocalVoiceController {
     this.setStatus('executing', `${call.name.replace(/_/g, ' ')}…`);
     this.holdRender();
     try {
-      const result = await this.runner(call.name, call.args || {}, { isCurrent: () => true });
+      let result = await this.runner(call.name, call.args || {}, { isCurrent: () => true });
+      // Small models like to echo the route's title into fly_route; the tool
+      // only accepts saved names — retry once for "the newest route".
+      if (call.name === 'fly_route' && result?.ok === false && /No route matches/i.test(result.error || '') && call.args?.name) {
+        result = await this.runner('fly_route', { ...call.args, name: undefined }, { isCurrent: () => true });
+      }
       return result ?? { ok: true, action: call.name };
     } catch (error) {
       return { ok: false, action: call.name, error: String(error?.message || error).slice(0, 300) };
