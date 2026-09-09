@@ -90,7 +90,7 @@ export function sanitizeHistory(messages) {
   return clean.slice(-MAX_HISTORY);
 }
 
-function toOllamaMessages(instructions, history) {
+export function toOllamaMessages(instructions, history) {
   const out = [{ role: 'system', content: instructions }];
   for (const m of history) {
     if (m.role === 'assistant') {
@@ -106,7 +106,7 @@ function toOllamaMessages(instructions, history) {
   return out;
 }
 
-function toAnthropicMessages(history) {
+export function toAnthropicMessages(history) {
   const out = [];
   let pendingResults = null;
   const flushResults = () => {
