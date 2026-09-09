@@ -260,9 +260,7 @@ export class LocalVoiceController {
       this.setVoiceSpeaker('ai');
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = this.lang;
-      const voices = synth.getVoices ? synth.getVoices() : [];
-      const preferred = voices.find((v) => v.lang && v.lang.toLowerCase().startsWith(this.lang.slice(0, 2).toLowerCase()) && /siri|premium|enhanced|natural/i.test(v.name))
-        || voices.find((v) => v.lang && v.lang.toLowerCase().startsWith(this.lang.slice(0, 2).toLowerCase()));
+      const preferred = pickVoice(synth, this.lang);
       if (preferred) utterance.voice = preferred;
       utterance.rate = 1.03;
       const done = () => {
@@ -371,4 +369,39 @@ function createLocalPanel(root, { onSubmit, placeholder }) {
   input.addEventListener('keydown', (event) => event.stopPropagation()); // keep app hotkeys (Space, 1-7) out of the box
   root.appendChild(panel);
   return { root: panel, input, reply: panel.querySelector('.gev-local-voice-reply') };
+}
+
+/**
+ * Pick the best available system voice for a language. Order: an explicit
+ * override (localStorage `gev.local-voice.voice` = voice name), then the
+ * platform's premium/enhanced voices, then well-known good names, then any
+ * voice of that language. Compact/eSpeak-style voices come last.
+ */
+const GOOD_VOICE_NAMES = {
+  es: ['Mónica', 'Monica', 'Jorge', 'Paulina', 'Marisol', 'Google español', 'Microsoft Elvira', 'Microsoft Alvaro'],
+  en: ['Samantha', 'Daniel', 'Karen', 'Moira', 'Google US English', 'Google UK English Female', 'Microsoft Aria'],
+  fr: ['Amélie', 'Thomas', 'Google français'],
+  it: ['Alice', 'Luca', 'Google italiano'],
+  de: ['Anna', 'Markus', 'Google Deutsch'],
+};
+export function pickVoice(synth, lang) {
+  const voices = (synth?.getVoices ? synth.getVoices() : []) || [];
+  if (!voices.length) return null;
+  const base = String(lang || 'en').slice(0, 2).toLowerCase();
+  let override = null;
+  try { override = localStorage.getItem('gev.local-voice.voice'); } catch { /* private mode */ }
+  if (override) {
+    const hit = voices.find((v) => v.name === override || v.voiceURI === override);
+    if (hit) return hit;
+  }
+  const sameLang = voices.filter((v) => (v.lang || '').toLowerCase().startsWith(base));
+  const pool = sameLang.length ? sameLang : voices;
+  const premium = pool.find((v) => /premium|enhanced|siri|natural|neural/i.test(`${v.name} ${v.voiceURI}`));
+  if (premium) return premium;
+  for (const name of GOOD_VOICE_NAMES[base] || []) {
+    const hit = pool.find((v) => v.name.toLowerCase().startsWith(name.toLowerCase()));
+    if (hit) return hit;
+  }
+  const notCompact = pool.find((v) => !/compact|espeak|eloquence/i.test(`${v.name} ${v.voiceURI}`));
+  return notCompact || pool[0];
 }
