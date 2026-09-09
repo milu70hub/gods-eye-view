@@ -47,6 +47,7 @@ import { createRequire } from 'node:module';
 import { defineConfig, loadEnv } from 'vite';
 import cesium from 'vite-plugin-cesium';
 import { normalizeRadioCountryInput } from './src/data/radioCountry.js';
+import { installKeylessGeocodeMiddleware } from './server/keylessGeocode.js';
 import {
   normalizeRegionalArticles,
   normalizeRegionalPlace,
@@ -5148,6 +5149,9 @@ export function openAiRealtimeProxy() {
         res.end(JSON.stringify({ error: error?.message || 'Failed to write Realtime debug log' }));
       }
     });
+
+    // Keyless forward geocoding (Nominatim) so fly_to_location works without a Google key.
+    installKeylessGeocodeMiddleware(middlewares);
 
     middlewares.use('/api/realtime/token', async (req, res) => {
       if (req.method !== 'GET' && req.method !== 'POST') {
