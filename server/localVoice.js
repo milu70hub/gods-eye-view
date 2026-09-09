@@ -224,7 +224,9 @@ function sendJson(res, status, payload) {
 export function installLocalVoiceMiddleware(middlewares, { tools, instructions, env = process.env }) {
   const localInstructions = `${instructions}\n`
     + 'You are running on a local/private model, not OpenAI. Reply in the language the operator speaks (Spanish when they speak Spanish). '
-    + 'Keep spoken replies to one short sentence. When a tool is needed, call it; after tool results, confirm in one sentence.';
+    + 'Keep spoken replies to one short sentence. When a tool is needed, call it; after tool results, confirm in one sentence. '
+    + 'If the operator asks what you can do, what to say, or how to zoom / rotate / orbit / follow / enter the cockpit / change layers or styles, '
+    + 'answer without calling a tool: a short list (max 8 lines) of example commands drawn from your tools, in their language.';
 
   middlewares.use('/api/local-voice/status', (req, res) => {
     const config = resolveLocalVoiceProvider(env);

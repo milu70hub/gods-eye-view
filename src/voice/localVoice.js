@@ -48,6 +48,10 @@ export class LocalVoiceController {
     this.spaceKeyHeld = false;
     this.pushToTalkKeyHeld = false;
     this.lastError = null;
+    this.panel = createLocalPanel(this.ui?.root, {
+      onSubmit: (text) => this.sendTextCommand(text),
+      placeholder: this.lang.toLowerCase().startsWith('es') ? 'Escribe una orden · «?» = ayuda' : "Type a command · '?' for help",
+    });
     this.setStatus('idle');
   }
 
@@ -123,6 +127,7 @@ export class LocalVoiceController {
   }
 
   stop({ removeUi = false } = {}) {
+    if (removeUi) this.panel?.root?.remove();
     this.active = false;
     this.stopRecognizer();
     try { window.speechSynthesis?.cancel(); } catch { /* ignore */ }
@@ -131,10 +136,22 @@ export class LocalVoiceController {
   }
 
   sendTextCommand(text) {
-    const clean = String(text || '').trim();
+    let clean = String(text || '').trim();
     if (!clean) return false;
+    if (clean === '?' || clean === 'help' || clean === 'ayuda') {
+      clean = this.lang.toLowerCase().startsWith('es')
+        ? '¿Qué puedo decirte? Resume en pocas líneas las órdenes que entiendes: navegar, zoom, girar/orbitar, seguir aviones o barcos, cabina, capas, estilos, radio.'
+        : 'What can I say? Summarize in a few lines the commands you understand: navigate, zoom, orbit/rotate, follow aircraft or ships, cockpit, layers, styles, radio.';
+    }
     this.handleUtterance(clean, { typed: true });
     return true;
+  }
+
+  showReply(text, { error = false } = {}) {
+    if (!this.panel?.reply) return;
+    this.panel.reply.hidden = !text;
+    this.panel.reply.textContent = text || '';
+    this.panel.reply.dataset.error = error ? 'true' : 'false';
   }
 
   providerLabel() {
@@ -171,10 +188,12 @@ export class LocalVoiceController {
       }
       const reply = String(turn.text || '').trim() || (rounds ? 'Done.' : '');
       this.pushHistory({ role: 'assistant', content: reply, toolCalls: [] });
-      if (reply) await this.speak(reply);
+      this.showReply(reply);
+      if (reply && this.active) await this.speak(reply);
       this.setStatus(this.active ? 'listening' : 'idle', this.active ? `${this.providerLabel()} · ${reply.slice(0, 70)}` : undefined);
     } catch (error) {
       this.lastError = String(error?.message || error);
+      this.showReply(this.lastError, { error: true });
       this.setStatus(this.active ? 'listening' : 'idle', `${this.providerLabel()} · ${this.lastError.slice(0, 80)}`);
       if (typed) console.warn('[local-voice]', this.lastError);
     } finally {
@@ -295,4 +314,33 @@ export class LocalVoiceController {
   getDiagnostics() {
     return { provider: this.provider, model: this.model, lang: this.lang, active: this.active, busy: this.busy, history: this.history.length, lastError: this.lastError };
   }
+}
+
+/**
+ * Typed command box + last-reply line under the mic control. Voice is optional:
+ * the same turn loop runs from the keyboard (car passengers, quiet rooms,
+ * browsers without SpeechRecognition).
+ */
+function createLocalPanel(root, { onSubmit, placeholder }) {
+  if (!root || typeof document === 'undefined') return null;
+  root.querySelector('.gev-local-voice')?.remove();
+  const panel = document.createElement('div');
+  panel.className = 'gev-local-voice';
+  panel.innerHTML = `
+    <form class="gev-local-voice-form" autocomplete="off">
+      <input class="gev-local-voice-input" type="text" spellcheck="false" aria-label="Command" />
+    </form>
+    <div class="gev-local-voice-reply" role="status" aria-live="polite" hidden></div>`;
+  const form = panel.querySelector('form');
+  const input = panel.querySelector('input');
+  input.placeholder = placeholder;
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const text = input.value;
+    input.value = '';
+    onSubmit(text);
+  });
+  input.addEventListener('keydown', (event) => event.stopPropagation()); // keep app hotkeys (Space, 1-7) out of the box
+  root.appendChild(panel);
+  return { root: panel, input, reply: panel.querySelector('.gev-local-voice-reply') };
 }
