@@ -176,7 +176,11 @@ export class LocalVoiceController {
 
   async handleUtterance(text, { typed = false } = {}) {
     if (this.busy) {
-      this.setStatus('executing', `${this.providerLabel()} · busy, one moment`);
+      // Queue instead of dropping: a second order spoken while the first turn
+      // is still running (model latency + flight) must not vanish.
+      this.queue = this.queue || [];
+      this.queue.push({ text, typed });
+      this.setStatus('executing', `${this.providerLabel()} · queued: "${text.slice(0, 40)}"`);
       return;
     }
     this.busy = true;
@@ -208,6 +212,8 @@ export class LocalVoiceController {
     } finally {
       this.busy = false;
       this.setVoiceSpeaker('idle');
+      const next = this.queue?.shift();
+      if (next) setTimeout(() => this.handleUtterance(next.text, { typed: next.typed }), 50);
     }
   }
 
