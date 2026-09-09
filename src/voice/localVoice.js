@@ -1,5 +1,5 @@
 /**
- * Local voice controller (Solendra, 9 Sep 2026) — the browser half of the
+ * Local voice controller (September 2026) — the browser half of the
  * local provider answering upstream issue #212.
  *
  * Ear   = Web Speech API (SpeechRecognition; works on iPhone Safari over HTTPS)

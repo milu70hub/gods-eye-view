@@ -22,7 +22,7 @@ test('provider resolution: auto prefers Anthropic, then Ollama, else unconfigure
   assert.equal(resolveLocalVoiceProvider({ OLLAMA_URL: 'http://x', ANTHROPIC_API_KEY: 'k' }).provider, 'anthropic');
   assert.equal(resolveLocalVoiceProvider({ LOCAL_VOICE_PROVIDER: 'ollama', ANTHROPIC_API_KEY: 'k' }).provider, 'ollama');
   assert.equal(resolveLocalVoiceProvider({ LOCAL_VOICE_PROVIDER: 'anthropic' }).configured, false);
-  assert.equal(resolveLocalVoiceProvider({ OLLAMA_URL: 'http://x', OLLAMA_MODEL: 'marcel', LOCAL_VOICE_LANG: 'es-ES' }).model, 'marcel');
+  assert.equal(resolveLocalVoiceProvider({ OLLAMA_URL: 'http://x', OLLAMA_MODEL: 'qwen3', LOCAL_VOICE_LANG: 'es-ES' }).model, 'qwen3');
   assert.equal(resolveLocalVoiceProvider({ OLLAMA_URL: 'http://x', LOCAL_VOICE_LANG: 'es-ES' }).lang, 'es-ES');
 });
 
@@ -41,14 +41,14 @@ test('history sanitizer normalizes roles, tool calls, and caps length', () => {
   const clean = sanitizeHistory([
     null,
     { role: 'user', content: 'hola' },
-    { role: 'assistant', content: '', toolCalls: [{ name: 'zoom_to_globe' }, { id: 'c2', name: 'fly_to_location', args: { query: 'Moraira' } }, { bogus: true }] },
+    { role: 'assistant', content: '', toolCalls: [{ name: 'zoom_to_globe' }, { id: 'c2', name: 'fly_to_location', args: { query: 'Lisbon' } }, { bogus: true }] },
     { role: 'tool', id: 'c2', name: 'fly_to_location', content: '{"ok":true}' },
     { role: 'system', content: 'ignored role becomes user' },
   ]);
   assert.equal(clean.length, 4);
   assert.deepEqual(clean[1].toolCalls, [
     { id: 'call_0', name: 'zoom_to_globe', args: {} },
-    { id: 'c2', name: 'fly_to_location', args: { query: 'Moraira' } },
+    { id: 'c2', name: 'fly_to_location', args: { query: 'Lisbon' } },
   ]);
   assert.equal(clean[3].role, 'user');
   const long = sanitizeHistory(Array.from({ length: 60 }, (_, i) => ({ role: 'user', content: String(i) })));
@@ -58,8 +58,8 @@ test('history sanitizer normalizes roles, tool calls, and caps length', () => {
 
 test('Anthropic messages group tool results after the assistant tool_use turn and start with user', () => {
   const history = sanitizeHistory([
-    { role: 'user', content: 'llévame a Moraira' },
-    { role: 'assistant', content: '', toolCalls: [{ id: 'c1', name: 'fly_to_location', args: { query: 'Moraira' } }, { id: 'c2', name: 'zoom_to_globe', args: {} }] },
+    { role: 'user', content: 'take me to Lisbon' },
+    { role: 'assistant', content: '', toolCalls: [{ id: 'c1', name: 'fly_to_location', args: { query: 'Lisbon' } }, { id: 'c2', name: 'zoom_to_globe', args: {} }] },
     { role: 'tool', id: 'c1', name: 'fly_to_location', content: '{"ok":true}' },
     { role: 'tool', id: 'c2', name: 'zoom_to_globe', content: '{"ok":true}' },
   ]);
@@ -111,19 +111,19 @@ test('turn endpoint normalizes Ollama tool calls and Anthropic tool_use blocks',
     globalThis.fetch = async (url, init) => {
       seen.push({ url: String(url), body: JSON.parse(init.body) });
       if (String(url).includes('/api/chat')) {
-        return new Response(JSON.stringify({ model: 'marcel', message: { role: 'assistant', content: '', tool_calls: [{ function: { name: 'fly_to_location', arguments: { query: 'Moraira' } } }] } }), { status: 200 });
+        return new Response(JSON.stringify({ model: 'qwen3', message: { role: 'assistant', content: '', tool_calls: [{ function: { name: 'fly_to_location', arguments: { query: 'Lisbon' } } }] } }), { status: 200 });
       }
-      return new Response(JSON.stringify({ model: 'claude', content: [{ type: 'text', text: 'Flying to Moraira.' }, { type: 'tool_use', id: 'toolu_1', name: 'fly_to_location', input: { query: 'Moraira' } }] }), { status: 200 });
+      return new Response(JSON.stringify({ model: 'claude', content: [{ type: 'text', text: 'Flying to Lisbon.' }, { type: 'tool_use', id: 'toolu_1', name: 'fly_to_location', input: { query: 'Lisbon' } }] }), { status: 200 });
     };
     const app = fakeApp();
-    installLocalVoiceMiddleware(app, { tools: TOOLS, instructions: 'SYS', env: { OLLAMA_URL: 'http://ollama:11434', OLLAMA_MODEL: 'marcel' } });
+    installLocalVoiceMiddleware(app, { tools: TOOLS, instructions: 'SYS', env: { OLLAMA_URL: 'http://ollama:11434', OLLAMA_MODEL: 'qwen3' } });
     const res = fakeRes();
-    await app.routes.get('/api/local-voice/turn')(fakeReq('POST', { messages: [{ role: 'user', content: 'llévame a Moraira' }] }), res);
+    await app.routes.get('/api/local-voice/turn')(fakeReq('POST', { messages: [{ role: 'user', content: 'take me to Lisbon' }] }), res);
     const turn = JSON.parse(res.body);
     assert.equal(res.statusCode, 200);
     assert.equal(turn.provider, 'ollama');
     assert.equal(turn.toolCalls[0].name, 'fly_to_location');
-    assert.deepEqual(turn.toolCalls[0].args, { query: 'Moraira' });
+    assert.deepEqual(turn.toolCalls[0].args, { query: 'Lisbon' });
     assert.equal(seen[0].body.tools[0].function.name, 'fly_to_location');
     assert.equal(seen[0].body.messages[0].role, 'system');
     assert.match(seen[0].body.messages[0].content, /^SYS\n/);
@@ -131,11 +131,11 @@ test('turn endpoint normalizes Ollama tool calls and Anthropic tool_use blocks',
     const app2 = fakeApp();
     installLocalVoiceMiddleware(app2, { tools: TOOLS, instructions: 'SYS', env: { ANTHROPIC_API_KEY: 'k' } });
     const res2 = fakeRes();
-    await app2.routes.get('/api/local-voice/turn')(fakeReq('POST', { messages: [{ role: 'user', content: 'take me to Moraira' }] }), res2);
+    await app2.routes.get('/api/local-voice/turn')(fakeReq('POST', { messages: [{ role: 'user', content: 'take me to Lisbon' }] }), res2);
     const turn2 = JSON.parse(res2.body);
     assert.equal(turn2.provider, 'anthropic');
-    assert.equal(turn2.text, 'Flying to Moraira.');
-    assert.deepEqual(turn2.toolCalls, [{ id: 'toolu_1', name: 'fly_to_location', args: { query: 'Moraira' } }]);
+    assert.equal(turn2.text, 'Flying to Lisbon.');
+    assert.deepEqual(turn2.toolCalls, [{ id: 'toolu_1', name: 'fly_to_location', args: { query: 'Lisbon' } }]);
     assert.equal(seen[1].body.tools[0].input_schema.type, 'object');
   } finally {
     globalThis.fetch = originalFetch;

@@ -1,5 +1,5 @@
 /**
- * Local voice provider for God's Eye View (Solendra, 9 Sep 2026).
+ * Local voice provider for God's Eye View (September 2026).
  *
  * Answers upstream issue #212: drive the SAME 28 voice tools with a local LLM
  * (Ollama) or Anthropic instead of the OpenAI Realtime API. The browser does
